@@ -48,6 +48,12 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
     private Day24ClockRingView clockRingView;
     private TextView tvDayPercent;
     private TextView tvWeather;
+
+    private TextView tvMediaTitle;
+    private TextView tvMediaArtist;
+    private TextView btnMediaPlayPause;
+    private View layoutTrackInfo;
+
     private AppAdapter appAdapter;
 
     private final List<AppModel> allApps = new ArrayList<>();
@@ -64,6 +70,17 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             dayPercentHandler.postDelayed(this, 1000);
         }
     };
+
+    private final Handler mediaHandler = new Handler(Looper.getMainLooper());
+    private final Runnable mediaRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshMediaState();
+            mediaHandler.postDelayed(this, 2000);
+        }
+    };
+
+    private boolean mediaPermissionNeeded = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +109,15 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         clockRingView = findViewById(R.id.clockRingView);
         tvDayPercent = findViewById(R.id.tvDayPercent);
         tvWeather = findViewById(R.id.tvWeather);
+
+        tvMediaTitle = findViewById(R.id.tvMediaTitle);
+        tvMediaArtist = findViewById(R.id.tvMediaArtist);
+        btnMediaPlayPause = findViewById(R.id.btnMediaPlayPause);
+        layoutTrackInfo = findViewById(R.id.layoutTrackInfo);
+
+        TextView btnMediaPrev = findViewById(R.id.btnMediaPrev);
+        TextView btnMediaNext = findViewById(R.id.btnMediaNext);
+
         RecyclerView rvApps = findViewById(R.id.rvApps);
 
         appAdapter = new AppAdapter(this, this);
@@ -108,6 +134,29 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             });
         }
 
+        layoutTrackInfo.setOnClickListener(v -> {
+            if (mediaPermissionNeeded) {
+                MediaControlManager.openNotificationListenerSettings(this);
+            } else {
+                launchSpotifyOrMusicApp();
+            }
+        });
+
+        btnMediaPrev.setOnClickListener(v -> {
+            MediaControlManager.skipToPrevious(this);
+            mediaHandler.postDelayed(this::refreshMediaState, 300);
+        });
+
+        btnMediaPlayPause.setOnClickListener(v -> {
+            MediaControlManager.togglePlayPause(this);
+            mediaHandler.postDelayed(this::refreshMediaState, 300);
+        });
+
+        btnMediaNext.setOnClickListener(v -> {
+            MediaControlManager.skipToNext(this);
+            mediaHandler.postDelayed(this::refreshMediaState, 300);
+        });
+
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -119,6 +168,29 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
             @Override
             public void afterTextChanged(Editable s) {}
+        });
+    }
+
+    private void launchSpotifyOrMusicApp() {
+        PackageManager pm = getPackageManager();
+        Intent intent = pm.getLaunchIntentForPackage("com.spotify.music");
+        if (intent != null) {
+            try {
+                startActivity(intent);
+                return;
+            } catch (Exception ignored) {}
+        }
+        Toast.makeText(this, "Spotify nyitása…", Toast.LENGTH_SHORT).show();
+    }
+
+    private void refreshMediaState() {
+        MediaControlManager.updateMediaState(this, (isPlaying, title, artist, appName, needsPermission) -> {
+            mediaPermissionNeeded = needsPermission;
+            if (tvMediaTitle != null) tvMediaTitle.setText(title);
+            if (tvMediaArtist != null) tvMediaArtist.setText(artist);
+            if (btnMediaPlayPause != null) {
+                btnMediaPlayPause.setText(isPlaying ? "⏸" : "▶");
+            }
         });
     }
 
@@ -345,6 +417,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
         String[] options = new String[]{
                 "Alapértelmezett Kezdőképernyő beállítása",
+                "Zenevezérlési hozzáférés (Értesítés engedély)",
                 "Frissítés keresése a GitHubon",
                 "GitHub Repó beállítása (" + currentOwner + "/" + currentRepo + ")"
         };
@@ -355,8 +428,10 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
                     if (which == 0) {
                         requestDefaultLauncher();
                     } else if (which == 1) {
-                        checkGitHubUpdates(true);
+                        MediaControlManager.openNotificationListenerSettings(this);
                     } else if (which == 2) {
+                        checkGitHubUpdates(true);
+                    } else if (which == 3) {
                         showGithubRepoInputDialog();
                     }
                 })
@@ -413,6 +488,9 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         dayPercentHandler.removeCallbacks(dayPercentRunnable);
         dayPercentHandler.post(dayPercentRunnable);
 
+        mediaHandler.removeCallbacks(mediaRunnable);
+        mediaHandler.post(mediaRunnable);
+
         WeatherManager.fetchWeather(this, weatherText -> {
             if (tvWeather != null) {
                 tvWeather.setText(weatherText);
@@ -426,5 +504,6 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
     protected void onPause() {
         super.onPause();
         dayPercentHandler.removeCallbacks(dayPercentRunnable);
+        mediaHandler.removeCallbacks(mediaRunnable);
     }
 }
