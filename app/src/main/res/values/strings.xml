@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Minimal Launcher</string>
+    <string name="search_hint">Gépelj a kereséshez…</string>
+    <string name="favorites_title">Kedvencek</string>
+    <string name="all_apps_count">Összes alkalmazás (%1$d)</string>
+    <string name="search_results_count">Találatok (%1$d)</string>
+    <string name="no_apps_found">Nincs találat</string>
+    <string name="set_as_default_launcher">Alapértelmezett Launcher beállítása</string>
+    <string name="cant_launch_app">Nem sikerült elindítani az alkalmazást</string>
+    <string name="cant_open_settings">Beállítások nem nyithatók meg</string>
+</resources>
