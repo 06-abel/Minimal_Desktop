@@ -194,44 +194,40 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <TextView
+            <ImageView
                 android:id="@+id/btnMediaPrev"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="6dp"
-                android:text="⏮"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_skip_previous_white"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
                 android:focusable="true"
-                tools:ignore="HardcodedText" />
+                android:contentDescription="Előző szám" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/btnMediaPlayPause"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="6dp"
-                android:text="⏯"
-                android:textColor="@color/text_primary"
-                android:textSize="22sp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_play_white"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
                 android:focusable="true"
-                tools:ignore="HardcodedText" />
+                android:contentDescription="Lejátszás / Szünet" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/btnMediaNext"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="6dp"
-                android:text="⏭"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_skip_next_white"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
                 android:focusable="true"
-                tools:ignore="HardcodedText" />
+                android:contentDescription="Következő szám" />
 
         </LinearLayout>
 

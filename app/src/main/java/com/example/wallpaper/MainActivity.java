@@ -16,6 +16,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -51,8 +52,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
     private TextView tvMediaTitle;
     private TextView tvMediaArtist;
-    private TextView btnMediaPlayPause;
-    private View layoutTrackInfo;
+    private ImageView btnMediaPlayPause;
 
     private AppAdapter appAdapter;
 
@@ -113,10 +113,10 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         tvMediaTitle = findViewById(R.id.tvMediaTitle);
         tvMediaArtist = findViewById(R.id.tvMediaArtist);
         btnMediaPlayPause = findViewById(R.id.btnMediaPlayPause);
-        layoutTrackInfo = findViewById(R.id.layoutTrackInfo);
+        View layoutTrackInfo = findViewById(R.id.layoutTrackInfo);
 
-        TextView btnMediaPrev = findViewById(R.id.btnMediaPrev);
-        TextView btnMediaNext = findViewById(R.id.btnMediaNext);
+        ImageView btnMediaPrev = findViewById(R.id.btnMediaPrev);
+        ImageView btnMediaNext = findViewById(R.id.btnMediaNext);
 
         RecyclerView rvApps = findViewById(R.id.rvApps);
 
@@ -134,28 +134,36 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             });
         }
 
-        layoutTrackInfo.setOnClickListener(v -> {
-            if (mediaPermissionNeeded) {
-                MediaControlManager.openNotificationListenerSettings(this);
-            } else {
-                launchSpotifyOrMusicApp();
-            }
-        });
+        if (layoutTrackInfo != null) {
+            layoutTrackInfo.setOnClickListener(v -> {
+                if (mediaPermissionNeeded) {
+                    MediaControlManager.openNotificationListenerSettings(this);
+                } else {
+                    launchSpotifyOrMusicApp();
+                }
+            });
+        }
 
-        btnMediaPrev.setOnClickListener(v -> {
-            MediaControlManager.skipToPrevious(this);
-            mediaHandler.postDelayed(this::refreshMediaState, 300);
-        });
+        if (btnMediaPrev != null) {
+            btnMediaPrev.setOnClickListener(v -> {
+                MediaControlManager.skipToPrevious(this);
+                mediaHandler.postDelayed(this::refreshMediaState, 300);
+            });
+        }
 
-        btnMediaPlayPause.setOnClickListener(v -> {
-            MediaControlManager.togglePlayPause(this);
-            mediaHandler.postDelayed(this::refreshMediaState, 300);
-        });
+        if (btnMediaPlayPause != null) {
+            btnMediaPlayPause.setOnClickListener(v -> {
+                MediaControlManager.togglePlayPause(this);
+                mediaHandler.postDelayed(this::refreshMediaState, 300);
+            });
+        }
 
-        btnMediaNext.setOnClickListener(v -> {
-            MediaControlManager.skipToNext(this);
-            mediaHandler.postDelayed(this::refreshMediaState, 300);
-        });
+        if (btnMediaNext != null) {
+            btnMediaNext.setOnClickListener(v -> {
+                MediaControlManager.skipToNext(this);
+                mediaHandler.postDelayed(this::refreshMediaState, 300);
+            });
+        }
 
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
@@ -189,7 +197,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             if (tvMediaTitle != null) tvMediaTitle.setText(title);
             if (tvMediaArtist != null) tvMediaArtist.setText(artist);
             if (btnMediaPlayPause != null) {
-                btnMediaPlayPause.setText(isPlaying ? "⏸" : "▶");
+                btnMediaPlayPause.setImageResource(isPlaying ? R.drawable.ic_pause_white : R.drawable.ic_play_white);
             }
         });
     }
