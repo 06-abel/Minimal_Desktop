@@ -48,11 +48,11 @@ public class CalendarManager {
         prefs.edit().putStringSet(KEY_COMPLETED_EVENTS, completedSet).apply();
     }
 
-    private static boolean isIgnoredHolidayOrBirthday(String title, String calendarName) {
+    private static boolean isIgnoredHolidayOrBirthday(String title) {
         if (title == null) return true;
-        String lowerTitle = title.toLowerCase(Locale.getDefault());
+        String lowerTitle = title.toLowerCase(Locale.getDefault()).trim();
 
-        if (lowerTitle.contains("boldog születésnapot")
+        return lowerTitle.contains("boldog születésnapot")
                 || lowerTitle.contains("születésnap")
                 || lowerTitle.contains("névnap")
                 || lowerTitle.contains("télapó")
@@ -65,22 +65,7 @@ public class CalendarManager {
                 || lowerTitle.contains("karácsony")
                 || lowerTitle.contains("húsvét")
                 || lowerTitle.contains("pünkösd")
-                || lowerTitle.contains("nagypéntek")) {
-            return true;
-        }
-
-        if (calendarName != null) {
-            String lowerCal = calendarName.toLowerCase(Locale.getDefault());
-            if (lowerCal.contains("holiday")
-                    || lowerCal.contains("ünnep")
-                    || lowerCal.contains("birthday")
-                    || lowerCal.contains("születésnap")
-                    || lowerCal.contains("névnap")) {
-                return true;
-            }
-        }
-
-        return false;
+                || lowerTitle.contains("nagypéntek");
     }
 
     public static List<CalendarEventModel> loadNext24HoursEvents(Context context) {
@@ -90,7 +75,7 @@ public class CalendarManager {
         }
 
         Set<String> completedIds = getCompletedEventIds(context);
-        Set<Long> loadedEventIds = new HashSet<>();
+        Set<String> loadedKeys = new HashSet<>();
 
         long now = System.currentTimeMillis();
 
@@ -103,7 +88,6 @@ public class CalendarManager {
         long startOfToday = cal.getTimeInMillis();
         long endOfTomorrow = startOfToday + (48 * 60 * 60 * 1000L);
 
-        // 1. Primary Query: CalendarContract.Instances for today & tomorrow
         try {
             Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
             ContentUris.appendId(builder, startOfToday);
@@ -114,8 +98,7 @@ public class CalendarManager {
                     CalendarContract.Instances.TITLE,
                     CalendarContract.Instances.BEGIN,
                     CalendarContract.Instances.END,
-                    CalendarContract.Instances.ALL_DAY,
-                    CalendarContract.Instances.CALENDAR_DISPLAY_NAME
+                    CalendarContract.Instances.ALL_DAY
             };
 
             Cursor cursor = context.getContentResolver().query(
@@ -133,84 +116,30 @@ public class CalendarManager {
                     long startTime = cursor.getLong(2);
                     long endTime = cursor.getLong(3);
                     boolean isAllDay = cursor.getInt(4) == 1;
-                    String calName = cursor.getString(5);
 
-                    // Skip past events that finished before now (if not all day today)
+                    // Skip past events that finished before now
                     if (endTime < now && !isAllDay) {
                         continue;
                     }
 
-                    if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title, calName)) {
+                    if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title)) {
+                        String uniqueKey = eventId + "_" + startTime;
+                        if (loadedKeys.contains(uniqueKey)) {
+                            continue;
+                        }
+                        loadedKeys.add(uniqueKey);
+
                         CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
                         if (completedIds.contains(String.valueOf(eventId))) {
                             event.setCompleted(true);
                         }
                         events.add(event);
-                        loadedEventIds.add(eventId);
                     }
                 }
                 cursor.close();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Hiba az Instances lekérdezésekor: " + e.getMessage(), e);
-        }
-
-        // 2. Secondary Query: CalendarContract.Events strictly starting today/tomorrow
-        try {
-            String selection = CalendarContract.Events.DELETED + " = 0 AND "
-                    + CalendarContract.Events.DTSTART + " >= ? AND "
-                    + CalendarContract.Events.DTSTART + " <= ?";
-            String[] selectionArgs = new String[]{
-                    String.valueOf(startOfToday),
-                    String.valueOf(endOfTomorrow)
-            };
-
-            String[] projection = new String[]{
-                    CalendarContract.Events._ID,
-                    CalendarContract.Events.TITLE,
-                    CalendarContract.Events.DTSTART,
-                    CalendarContract.Events.DTEND,
-                    CalendarContract.Events.ALL_DAY,
-                    CalendarContract.Events.CALENDAR_DISPLAY_NAME
-            };
-
-            Cursor cursor = context.getContentResolver().query(
-                    CalendarContract.Events.CONTENT_URI,
-                    projection,
-                    selection,
-                    selectionArgs,
-                    CalendarContract.Events.DTSTART + " ASC"
-            );
-
-            if (cursor != null) {
-                while (cursor.moveToNext()) {
-                    long eventId = cursor.getLong(0);
-                    if (loadedEventIds.contains(eventId)) {
-                        continue;
-                    }
-                    String title = cursor.getString(1);
-                    long startTime = cursor.getLong(2);
-                    long endTime = cursor.getLong(3);
-                    boolean isAllDay = cursor.getInt(4) == 1;
-                    String calName = cursor.getString(5);
-
-                    if (endTime < now && !isAllDay) {
-                        continue;
-                    }
-
-                    if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title, calName)) {
-                        CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
-                        if (completedIds.contains(String.valueOf(eventId))) {
-                            event.setCompleted(true);
-                        }
-                        events.add(event);
-                        loadedEventIds.add(eventId);
-                    }
-                }
-                cursor.close();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Hiba az Events lekérdezésekor: " + e.getMessage(), e);
+            Log.e(TAG, "Hiba a naptári események lekérdezésekor: " + e.getMessage(), e);
         }
 
         // Sort: Incomplete events first (chronological), then completed events
@@ -221,7 +150,7 @@ public class CalendarManager {
             return Long.compare(e1.getStartTime(), e2.getStartTime());
         });
 
-        // Limit to max 5 items to keep the launcher clean and compact
+        // Limit to max 5 items to keep launcher UI clean
         if (events.size() > 5) {
             return new ArrayList<>(events.subList(0, 5));
         }
