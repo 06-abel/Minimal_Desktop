@@ -8,4 +8,5 @@
     <string name="set_as_default_launcher">Alapértelmezett Launcher beállítása</string>
     <string name="cant_launch_app">Nem sikerült elindítani az alkalmazást</string>
     <string name="cant_open_settings">Beállítások nem nyithatók meg</string>
+    <string name="day_percent_text">%1$.1f%% a napból</string>
 </resources>

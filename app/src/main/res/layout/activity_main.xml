@@ -8,50 +8,20 @@
     android:background="@color/bg_black"
     tools:context=".MainActivity">
 
-    <!-- Top Header: Clock, Date and Settings -->
-    <LinearLayout
+    <!-- Top Header Layout with Settings & 24h Clock Ring -->
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingStart="24dp"
-        android:paddingTop="36dp"
-        android:paddingEnd="24dp"
-        android:paddingBottom="12dp"
-        android:gravity="center_vertical">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextClock
-                android:id="@+id/clockTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:format12Hour="HH:mm"
-                android:format24Hour="HH:mm"
-                android:textColor="@color/text_primary"
-                android:textSize="56sp"
-                android:fontFamily="sans-serif-light" />
-
-            <TextClock
-                android:id="@+id/clockDate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="-4dp"
-                android:format12Hour="EEEE, MMMM d"
-                android:format24Hour="EEEE, MMMM d"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp"
-                android:fontFamily="sans-serif" />
-
-        </LinearLayout>
+        android:paddingTop="32dp"
+        android:paddingBottom="12dp">
 
         <TextView
             android:id="@+id/btnSettings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginEnd="16dp"
             android:padding="8dp"
             android:text="⚙"
             android:textColor="@color/text_secondary"
@@ -61,7 +31,62 @@
             android:focusable="true"
             tools:ignore="HardcodedText" />
 
-    </LinearLayout>
+        <!-- Centered 24-Hour Fancy Progress Ring & Clock Container -->
+        <FrameLayout
+            android:layout_width="220dp"
+            android:layout_height="220dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="8dp">
+
+            <com.example.wallpaper.Day24ClockRingView
+                android:id="@+id/clockRingView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextClock
+                    android:id="@+id/clockTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:format12Hour="HH:mm"
+                    android:format24Hour="HH:mm"
+                    android:textColor="@color/text_primary"
+                    android:textSize="44sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:includeFontPadding="false" />
+
+                <TextClock
+                    android:id="@+id/clockDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:format12Hour="EEE, MMM d"
+                    android:format24Hour="EEE, MMM d"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/tvDayPercent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    tools:text="62.4% eltelt"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif-medium" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </RelativeLayout>
 
     <!-- Default Launcher Banner -->
     <LinearLayout
@@ -126,7 +151,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingStart="24dp"
-        android:paddingTop="8dp"
+        android:paddingTop="4dp"
         android:paddingEnd="24dp"
         android:paddingBottom="8dp"
         tools:text="ÖSSZES ALKALMAZÁS (45)"

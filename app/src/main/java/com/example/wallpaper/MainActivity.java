@@ -7,6 +7,8 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -34,10 +36,24 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
     private EditText etSearch;
     private TextView tvHeaderLabel;
     private View bannerSetDefault;
+    private Day24ClockRingView clockRingView;
+    private TextView tvDayPercent;
     private AppAdapter appAdapter;
 
     private final List<AppModel> allApps = new ArrayList<>();
     private final List<AppModel> filteredApps = new ArrayList<>();
+
+    private final Handler dayPercentHandler = new Handler(Looper.getMainLooper());
+    private final Runnable dayPercentRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (clockRingView != null && tvDayPercent != null) {
+                float percent = clockRingView.getDayProgressPercentage();
+                tvDayPercent.setText(getString(R.string.day_percent_text, percent));
+            }
+            dayPercentHandler.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +77,8 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         etSearch = findViewById(R.id.etSearch);
         tvHeaderLabel = findViewById(R.id.tvHeaderLabel);
         bannerSetDefault = findViewById(R.id.bannerSetDefault);
+        clockRingView = findViewById(R.id.clockRingView);
+        tvDayPercent = findViewById(R.id.tvDayPercent);
         RecyclerView rvApps = findViewById(R.id.rvApps);
 
         appAdapter = new AppAdapter(this);
@@ -91,7 +109,6 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
                 if (etSearch.getText().length() > 0) {
                     etSearch.setText("");
                     etSearch.clearFocus();
-
                 }
                 // Do not exit activity as this is the Home launcher
             }
@@ -211,5 +228,14 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         } else {
             bannerSetDefault.setVisibility(View.VISIBLE);
         }
+
+        dayPercentHandler.removeCallbacks(dayPercentRunnable);
+        dayPercentHandler.post(dayPercentRunnable);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        dayPercentHandler.removeCallbacks(dayPercentRunnable);
     }
 }
