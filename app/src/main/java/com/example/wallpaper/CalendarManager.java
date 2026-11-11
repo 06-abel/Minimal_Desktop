@@ -13,6 +13,7 @@ import android.util.Log;
 import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -52,13 +53,23 @@ public class CalendarManager {
             return events;
         }
 
-        try {
-            long now = System.currentTimeMillis();
-            long next24h = now + (24 * 60 * 60 * 1000L);
+        Set<String> completedIds = getCompletedEventIds(context);
+        Set<Long> loadedEventIds = new HashSet<>();
 
+        // Start from start of today (00:00) to end of tomorrow (48 hours window)
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        long startOfToday = cal.getTimeInMillis();
+        long endOfTomorrow = startOfToday + (48 * 60 * 60 * 1000L);
+
+        // 1. Primary Query: CalendarContract.Instances
+        try {
             Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
-            ContentUris.appendId(builder, now);
-            ContentUris.appendId(builder, next24h);
+            ContentUris.appendId(builder, startOfToday);
+            ContentUris.appendId(builder, endOfTomorrow);
 
             String[] projection = new String[]{
                     CalendarContract.Instances.EVENT_ID,
@@ -76,8 +87,6 @@ public class CalendarManager {
                     CalendarContract.Instances.BEGIN + " ASC"
             );
 
-            Set<String> completedIds = getCompletedEventIds(context);
-
             if (cursor != null) {
                 while (cursor.moveToNext()) {
                     long eventId = cursor.getLong(0);
@@ -86,16 +95,71 @@ public class CalendarManager {
                     long endTime = cursor.getLong(3);
                     boolean isAllDay = cursor.getInt(4) == 1;
 
-                    CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
-                    if (completedIds.contains(String.valueOf(eventId))) {
-                        event.setCompleted(true);
+                    if (title != null && !title.trim().isEmpty()) {
+                        CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
+                        if (completedIds.contains(String.valueOf(eventId))) {
+                            event.setCompleted(true);
+                        }
+                        events.add(event);
+                        loadedEventIds.add(eventId);
                     }
-                    events.add(event);
                 }
                 cursor.close();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Hiba a naptári események lekérdezésekor: " + e.getMessage(), e);
+            Log.e(TAG, "Hiba az Instances lekérdezésekor: " + e.getMessage(), e);
+        }
+
+        // 2. Secondary Query: CalendarContract.Events for synced external calendars (e.g. Neptun / Timetable)
+        try {
+            String selection = CalendarContract.Events.DELETED + " = 0 AND "
+                    + "((" + CalendarContract.Events.DTSTART + " >= ? AND " + CalendarContract.Events.DTSTART + " <= ?) OR "
+                    + "(" + CalendarContract.Events.ALL_DAY + " = 1))";
+            String[] selectionArgs = new String[]{
+                    String.valueOf(startOfToday),
+                    String.valueOf(endOfTomorrow)
+            };
+
+            String[] projection = new String[]{
+                    CalendarContract.Events._ID,
+                    CalendarContract.Events.TITLE,
+                    CalendarContract.Events.DTSTART,
+                    CalendarContract.Events.DTEND,
+                    CalendarContract.Events.ALL_DAY
+            };
+
+            Cursor cursor = context.getContentResolver().query(
+                    CalendarContract.Events.CONTENT_URI,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    CalendarContract.Events.DTSTART + " ASC"
+            );
+
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    long eventId = cursor.getLong(0);
+                    if (loadedEventIds.contains(eventId)) {
+                        continue;
+                    }
+                    String title = cursor.getString(1);
+                    long startTime = cursor.getLong(2);
+                    long endTime = cursor.getLong(3);
+                    boolean isAllDay = cursor.getInt(4) == 1;
+
+                    if (title != null && !title.trim().isEmpty()) {
+                        CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
+                        if (completedIds.contains(String.valueOf(eventId))) {
+                            event.setCompleted(true);
+                        }
+                        events.add(event);
+                        loadedEventIds.add(eventId);
+                    }
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Hiba az Events lekérdezésekor: " + e.getMessage(), e);
         }
 
         // Sort: Incomplete events first (chronological), then completed events

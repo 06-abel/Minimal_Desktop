@@ -32,11 +32,11 @@
             android:id="@+id/tvEventTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            tools:text="Projekt megbeszélés"
+            tools:text="Budapesti erőművek - Tanóra"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:fontFamily="sans-serif-medium"
-            android:singleLine="true"
+            android:maxLines="2"
             android:ellipsize="end" />
 
         <TextView
@@ -44,7 +44,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            tools:text="14:00 - 15:00"
+            tools:text="12:15 - 14:00"
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:fontFamily="sans-serif" />
