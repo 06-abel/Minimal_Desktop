@@ -3,6 +3,7 @@ package com.example.wallpaper;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
@@ -31,12 +32,11 @@ import java.util.concurrent.Executors;
 public class GitHubUpdater {
 
     private static final String TAG = "GitHubUpdater";
+    private static final String PREFS_NAME = "wallpaper_prefs";
+    private static final String KEY_LAST_INSTALLED_TAG = "last_installed_github_tag";
+
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
-
-    public interface UpdateCheckCallback {
-        void onCheckComplete(boolean isUpdateAvailable, String latestVersion, String changelog, String downloadUrl);
-    }
 
     public static void checkForUpdates(Activity activity, String owner, String repo, boolean showToastIfLatest) {
         if (owner == null || repo == null || owner.isEmpty() || repo.isEmpty()) {
@@ -55,6 +55,14 @@ public class GitHubUpdater {
                 conn.setReadTimeout(8000);
 
                 int responseCode = conn.getResponseCode();
+
+                if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+                    if (showToastIfLatest) {
+                        mainHandler.post(() -> Toast.makeText(activity, "Még nincs közzétett Release a GitHubon (" + owner + "/" + repo + ")", Toast.LENGTH_LONG).show());
+                    }
+                    return;
+                }
+
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder sb = new StringBuilder();
@@ -85,21 +93,39 @@ public class GitHubUpdater {
                     String cleanLatestTag = tagName.replaceAll("[^0-9.]", "");
                     String cleanCurrentVersion = currentVersion.replaceAll("[^0-9.]", "");
 
+                    SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                    String lastInstalledTag = prefs.getString(KEY_LAST_INSTALLED_TAG, "");
+
                     boolean isNewer = isVersionNewer(cleanLatestTag, cleanCurrentVersion);
 
+                    // Prevent loop if user already installed this exact tag
+                    if (tagName.equalsIgnoreCase(lastInstalledTag) && !showToastIfLatest) {
+                        isNewer = false;
+                    }
+
+                    final boolean finalIsNewer = isNewer;
                     String finalDownloadUrl = downloadUrl;
                     mainHandler.post(() -> {
                         if (activity.isFinishing() || activity.isDestroyed()) return;
 
-                        if (isNewer && finalDownloadUrl != null) {
-                            showUpdateDialog(activity, tagName, changelog, finalDownloadUrl);
+                        if (finalIsNewer) {
+                            if (finalDownloadUrl != null) {
+                                showUpdateDialog(activity, tagName, changelog, finalDownloadUrl);
+                            } else if (showToastIfLatest) {
+                                Toast.makeText(activity, "Új verzió van a GitHubon (" + tagName + "), de nincs hozzá csatolva .apk fájl!", Toast.LENGTH_LONG).show();
+                            }
                         } else if (showToastIfLatest) {
-                            Toast.makeText(activity, "A legújabb verziót használod (" + currentVersion + ")", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(activity, "A legújabb verziót használod! (Telepítve: " + currentVersion + " | GitHub: " + tagName + ")", Toast.LENGTH_LONG).show();
                         }
                     });
+                } else if (showToastIfLatest) {
+                    mainHandler.post(() -> Toast.makeText(activity, "Hiba a GitHub elérésekor (HTTP " + responseCode + ")", Toast.LENGTH_SHORT).show());
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Hiba a frissítések ellenőrzésekor: " + e.getMessage(), e);
+                if (showToastIfLatest) {
+                    mainHandler.post(() -> Toast.makeText(activity, "Nem sikerült kapcsolódni a GitHubhoz", Toast.LENGTH_SHORT).show());
+                }
             }
         });
     }
@@ -142,12 +168,12 @@ public class GitHubUpdater {
         new AlertDialog.Builder(activity)
                 .setTitle("Új frissítés érhető el! (" + version + ")")
                 .setMessage("Változások:\n\n" + changelog + "\n\nSzeretnéd most letölteni és telepíteni a frissítést?")
-                .setPositiveButton("Frissítés", (dialog, which) -> downloadAndInstallApk(activity, downloadUrl))
+                .setPositiveButton("Frissítés", (dialog, which) -> downloadAndInstallApk(activity, version, downloadUrl))
                 .setNegativeButton("Később", null)
                 .show();
     }
 
-    public static void downloadAndInstallApk(Activity activity, String downloadUrl) {
+    public static void downloadAndInstallApk(Activity activity, String tagName, String downloadUrl) {
         Toast.makeText(activity, "Frissítés letöltése folyamatban…", Toast.LENGTH_SHORT).show();
 
         executor.execute(() -> {
@@ -171,6 +197,12 @@ public class GitHubUpdater {
 
                 outputStream.close();
                 inputStream.close();
+
+                // Remember that we just installed this tag
+                activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit()
+                        .putString(KEY_LAST_INSTALLED_TAG, tagName)
+                        .apply();
 
                 mainHandler.post(() -> installApk(activity, apkFile));
             } catch (Exception e) {
