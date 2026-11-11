@@ -201,7 +201,10 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
     }
 
     private void requestCalendarPermission() {
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CALENDAR}, REQUEST_CODE_CALENDAR);
+        ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.READ_CALENDAR,
+                Manifest.permission.WRITE_CALENDAR
+        }, REQUEST_CODE_CALENDAR);
     }
 
     private void loadCalendarEvents() {
@@ -227,7 +230,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
     @Override
     public void onEventToggle(CalendarEventModel event) {
-        CalendarManager.toggleEventCompleted(this, event.getId());
+        CalendarManager.toggleEventCompleted(this, event);
         loadCalendarEvents();
     }
 

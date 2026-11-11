@@ -1,7 +1,9 @@
 package com.example.wallpaper;
 
 import android.Manifest;
+import android.content.ContentProviderOperation;
 import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -29,23 +31,66 @@ public class CalendarManager {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED;
     }
 
+    public static boolean hasWriteCalendarPermission(Context context) {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED;
+    }
+
     private static Set<String> getCompletedEventIds(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         return prefs.getStringSet(KEY_COMPLETED_EVENTS, new HashSet<>());
     }
 
-    public static void toggleEventCompleted(Context context, long eventId) {
+    public static void toggleEventCompleted(Context context, CalendarEventModel event) {
+        if (context == null || event == null) return;
+
+        boolean newStatus = !event.isCompleted();
+        event.setCompleted(newStatus);
+
+        // 1. Update local SharedPreferences state
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         Set<String> completedSet = new HashSet<>(getCompletedEventIds(context));
-        String idStr = String.valueOf(eventId);
+        String idStr = String.valueOf(event.getId());
 
-        if (completedSet.contains(idStr)) {
-            completedSet.remove(idStr);
-        } else {
+        if (newStatus) {
             completedSet.add(idStr);
+        } else {
+            completedSet.remove(idStr);
         }
-
         prefs.edit().putStringSet(KEY_COMPLETED_EVENTS, completedSet).apply();
+
+        // 2. Sync title change ("✔ " prefix) back to Google Calendar database
+        if (hasWriteCalendarPermission(context)) {
+            try {
+                long eventId = event.getId();
+                String rawTitle = event.getTitle();
+
+                String newTitle;
+                if (newStatus) {
+                    if (!rawTitle.startsWith("✔ ")) {
+                        newTitle = "✔ " + rawTitle;
+                    } else {
+                        newTitle = rawTitle;
+                    }
+                } else {
+                    if (rawTitle.startsWith("✔ ")) {
+                        newTitle = rawTitle.substring(2);
+                    } else if (rawTitle.startsWith("[✔] ")) {
+                        newTitle = rawTitle.substring(4);
+                    } else {
+                        newTitle = rawTitle;
+                    }
+                }
+
+                ContentValues values = new ContentValues();
+                values.put(CalendarContract.Events.TITLE, newTitle);
+
+                Uri updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId);
+                int rowsUpdated = context.getContentResolver().update(updateUri, values, null, null);
+                Log.d(TAG, "Google Naptár frissítve, frissített sorok száma: " + rowsUpdated);
+            } catch (Exception e) {
+                Log.e(TAG, "Hiba a Google Naptár esemény frissítésekor: " + e.getMessage(), e);
+            }
+        }
     }
 
     private static boolean isIgnoredHolidayOrBirthday(String title) {
@@ -77,9 +122,7 @@ public class CalendarManager {
         Set<String> completedIds = getCompletedEventIds(context);
         Set<String> loadedKeys = new HashSet<>();
 
-        long now = System.currentTimeMillis();
-
-        // Window: From start of today (00:00) to end of tomorrow (48h max)
+        // Window: From start of today (00:00) to end of tomorrow (23:59:59)
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
@@ -117,23 +160,20 @@ public class CalendarManager {
                     long endTime = cursor.getLong(3);
                     boolean isAllDay = cursor.getInt(4) == 1;
 
-                    // Skip past events that finished before now
-                    if (endTime < now && !isAllDay) {
-                        continue;
-                    }
+                    if (startTime >= startOfToday && startTime <= endOfTomorrow) {
+                        if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title)) {
+                            String uniqueKey = eventId + "_" + startTime;
+                            if (loadedKeys.contains(uniqueKey)) {
+                                continue;
+                            }
+                            loadedKeys.add(uniqueKey);
 
-                    if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title)) {
-                        String uniqueKey = eventId + "_" + startTime;
-                        if (loadedKeys.contains(uniqueKey)) {
-                            continue;
+                            CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
+                            if (completedIds.contains(String.valueOf(eventId)) || title.startsWith("✔ ") || title.startsWith("[✔] ")) {
+                                event.setCompleted(true);
+                            }
+                            events.add(event);
                         }
-                        loadedKeys.add(uniqueKey);
-
-                        CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
-                        if (completedIds.contains(String.valueOf(eventId))) {
-                            event.setCompleted(true);
-                        }
-                        events.add(event);
                     }
                 }
                 cursor.close();
@@ -150,9 +190,8 @@ public class CalendarManager {
             return Long.compare(e1.getStartTime(), e2.getStartTime());
         });
 
-        // Limit to max 5 items to keep launcher UI clean
-        if (events.size() > 5) {
-            return new ArrayList<>(events.subList(0, 5));
+        if (events.size() > 8) {
+            return new ArrayList<>(events.subList(0, 8));
         }
 
         return events;
