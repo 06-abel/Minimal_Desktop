@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
     private View bannerSetDefault;
     private Day24ClockRingView clockRingView;
     private TextView tvDayPercent;
+    private TextView tvWeather;
     private AppAdapter appAdapter;
 
     private final List<AppModel> allApps = new ArrayList<>();
@@ -87,6 +88,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         bannerSetDefault = findViewById(R.id.bannerSetDefault);
         clockRingView = findViewById(R.id.clockRingView);
         tvDayPercent = findViewById(R.id.tvDayPercent);
+        tvWeather = findViewById(R.id.tvWeather);
         RecyclerView rvApps = findViewById(R.id.rvApps);
 
         appAdapter = new AppAdapter(this);
@@ -95,6 +97,13 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
         findViewById(R.id.btnSettings).setOnClickListener(v -> openSettingsDialog());
         bannerSetDefault.setOnClickListener(v -> requestDefaultLauncher());
+
+        if (tvWeather != null) {
+            tvWeather.setOnClickListener(v -> {
+                Toast.makeText(this, "Időjárás frissítése…", Toast.LENGTH_SHORT).show();
+                WeatherManager.fetchWeather(this, weatherText -> tvWeather.setText(weatherText));
+            });
+        }
 
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
@@ -311,6 +320,12 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
         dayPercentHandler.removeCallbacks(dayPercentRunnable);
         dayPercentHandler.post(dayPercentRunnable);
+
+        WeatherManager.fetchWeather(this, weatherText -> {
+            if (tvWeather != null) {
+                tvWeather.setText(weatherText);
+            }
+        });
     }
 
     @Override

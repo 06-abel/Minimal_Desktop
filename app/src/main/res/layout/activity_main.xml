@@ -12,8 +12,8 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="32dp"
-        android:paddingBottom="12dp">
+        android:paddingTop="28dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/btnSettings"
@@ -33,10 +33,10 @@
 
         <!-- Centered 24-Hour Fancy Progress Ring & Clock Container -->
         <FrameLayout
-            android:layout_width="220dp"
-            android:layout_height="220dp"
+            android:layout_width="230dp"
+            android:layout_height="230dp"
             android:layout_centerHorizontal="true"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="4dp">
 
             <com.example.wallpaper.Day24ClockRingView
                 android:id="@+id/clockRingView"
@@ -57,7 +57,7 @@
                     android:format12Hour="HH:mm"
                     android:format24Hour="HH:mm"
                     android:textColor="@color/text_primary"
-                    android:textSize="44sp"
+                    android:textSize="40sp"
                     android:fontFamily="sans-serif-medium"
                     android:includeFontPadding="false" />
 
@@ -69,18 +69,31 @@
                     android:format12Hour="EEE, MMM d"
                     android:format24Hour="EEE, MMM d"
                     android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/tvWeather"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    tools:text="☀️ +21°C • Tiszta idő"
+                    android:textColor="@color/text_primary"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackgroundBorderless" />
 
                 <TextView
                     android:id="@+id/tvDayPercent"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="2dp"
                     tools:text="62.4% eltelt"
                     android:textColor="@color/text_muted"
                     android:textSize="11sp"
-                    android:fontFamily="sans-serif-medium" />
+                    android:fontFamily="sans-serif" />
 
             </LinearLayout>
 
