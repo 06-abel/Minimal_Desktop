@@ -13,9 +13,9 @@ import android.util.Log;
 import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class CalendarManager {
@@ -47,6 +47,41 @@ public class CalendarManager {
         prefs.edit().putStringSet(KEY_COMPLETED_EVENTS, completedSet).apply();
     }
 
+    private static boolean isIgnoredHolidayOrBirthday(String title, String calendarName) {
+        if (title == null) return true;
+        String lowerTitle = title.toLowerCase(Locale.getDefault());
+
+        if (lowerTitle.contains("boldog születésnapot")
+                || lowerTitle.contains("születésnap")
+                || lowerTitle.contains("névnap")
+                || lowerTitle.contains("télapó")
+                || lowerTitle.contains("mikulás")
+                || lowerTitle.contains("mindenszentek")
+                || lowerTitle.contains("szent istván")
+                || lowerTitle.contains("munkaszüneti nap")
+                || lowerTitle.contains("nemzeti ünnep")
+                || lowerTitle.contains("újév")
+                || lowerTitle.contains("karácsony")
+                || lowerTitle.contains("húsvét")
+                || lowerTitle.contains("pünkösd")
+                || lowerTitle.contains("nagypéntek")) {
+            return true;
+        }
+
+        if (calendarName != null) {
+            String lowerCal = calendarName.toLowerCase(Locale.getDefault());
+            if (lowerCal.contains("holiday")
+                    || lowerCal.contains("ünnep")
+                    || lowerCal.contains("birthday")
+                    || lowerCal.contains("születésnap")
+                    || lowerCal.contains("névnap")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static List<CalendarEventModel> loadNext24HoursEvents(Context context) {
         List<CalendarEventModel> events = new ArrayList<>();
         if (!hasCalendarPermission(context)) {
@@ -56,27 +91,22 @@ public class CalendarManager {
         Set<String> completedIds = getCompletedEventIds(context);
         Set<Long> loadedEventIds = new HashSet<>();
 
-        // Start from start of today (00:00) to end of tomorrow (48 hours window)
-        Calendar cal = Calendar.getInstance();
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        long startOfToday = cal.getTimeInMillis();
-        long endOfTomorrow = startOfToday + (48 * 60 * 60 * 1000L);
+        long now = System.currentTimeMillis();
+        long next24h = now + (24 * 60 * 60 * 1000L);
 
-        // 1. Primary Query: CalendarContract.Instances
+        // 1. Primary Query: CalendarContract.Instances for next 24 hours
         try {
             Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
-            ContentUris.appendId(builder, startOfToday);
-            ContentUris.appendId(builder, endOfTomorrow);
+            ContentUris.appendId(builder, now);
+            ContentUris.appendId(builder, next24h);
 
             String[] projection = new String[]{
                     CalendarContract.Instances.EVENT_ID,
                     CalendarContract.Instances.TITLE,
                     CalendarContract.Instances.BEGIN,
                     CalendarContract.Instances.END,
-                    CalendarContract.Instances.ALL_DAY
+                    CalendarContract.Instances.ALL_DAY,
+                    CalendarContract.Instances.CALENDAR_DISPLAY_NAME
             };
 
             Cursor cursor = context.getContentResolver().query(
@@ -94,8 +124,14 @@ public class CalendarManager {
                     long startTime = cursor.getLong(2);
                     long endTime = cursor.getLong(3);
                     boolean isAllDay = cursor.getInt(4) == 1;
+                    String calName = cursor.getString(5);
 
-                    if (title != null && !title.trim().isEmpty()) {
+                    // Skip past events, empty titles, or holiday/birthday spam
+                    if (endTime < now && !isAllDay) {
+                        continue;
+                    }
+
+                    if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title, calName)) {
                         CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
                         if (completedIds.contains(String.valueOf(eventId))) {
                             event.setCompleted(true);
@@ -113,11 +149,12 @@ public class CalendarManager {
         // 2. Secondary Query: CalendarContract.Events for synced external calendars (e.g. Neptun / Timetable)
         try {
             String selection = CalendarContract.Events.DELETED + " = 0 AND "
-                    + "((" + CalendarContract.Events.DTSTART + " >= ? AND " + CalendarContract.Events.DTSTART + " <= ?) OR "
-                    + "(" + CalendarContract.Events.ALL_DAY + " = 1))";
+                    + "((" + CalendarContract.Events.DTSTART + " <= ? AND " + CalendarContract.Events.DTEND + " >= ?) OR "
+                    + "(" + CalendarContract.Events.ALL_DAY + " = 1 AND " + CalendarContract.Events.DTSTART + " <= ?))";
             String[] selectionArgs = new String[]{
-                    String.valueOf(startOfToday),
-                    String.valueOf(endOfTomorrow)
+                    String.valueOf(next24h),
+                    String.valueOf(now),
+                    String.valueOf(next24h)
             };
 
             String[] projection = new String[]{
@@ -125,7 +162,8 @@ public class CalendarManager {
                     CalendarContract.Events.TITLE,
                     CalendarContract.Events.DTSTART,
                     CalendarContract.Events.DTEND,
-                    CalendarContract.Events.ALL_DAY
+                    CalendarContract.Events.ALL_DAY,
+                    CalendarContract.Events.CALENDAR_DISPLAY_NAME
             };
 
             Cursor cursor = context.getContentResolver().query(
@@ -146,8 +184,13 @@ public class CalendarManager {
                     long startTime = cursor.getLong(2);
                     long endTime = cursor.getLong(3);
                     boolean isAllDay = cursor.getInt(4) == 1;
+                    String calName = cursor.getString(5);
 
-                    if (title != null && !title.trim().isEmpty()) {
+                    if (endTime < now && !isAllDay) {
+                        continue;
+                    }
+
+                    if (title != null && !title.trim().isEmpty() && !isIgnoredHolidayOrBirthday(title, calName)) {
                         CalendarEventModel event = new CalendarEventModel(eventId, title, startTime, endTime, isAllDay);
                         if (completedIds.contains(String.valueOf(eventId))) {
                             event.setCompleted(true);
