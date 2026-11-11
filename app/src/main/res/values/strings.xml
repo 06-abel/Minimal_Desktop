@@ -3,10 +3,17 @@
     <string name="search_hint">Gépelj a kereséshez…</string>
     <string name="favorites_title">Kedvencek</string>
     <string name="all_apps_count">Összes alkalmazás (%1$d)</string>
+
     <string name="search_results_count">Találatok (%1$d)</string>
     <string name="no_apps_found">Nincs találat</string>
     <string name="set_as_default_launcher">Alapértelmezett Launcher beállítása</string>
     <string name="cant_launch_app">Nem sikerült elindítani az alkalmazást</string>
     <string name="cant_open_settings">Beállítások nem nyithatók meg</string>
     <string name="day_percent_text">%1$.1f%% a napból</string>
+
+    <string name="favorites_header_text">Kedvencek (%1$d) • Összes (%2$d)</string>
+    <string name="remove_favorite">★ Eltávolítás a kedvencekből</string>
+    <string name="add_favorite">⭐ Hozzáadás a kedvencekhez</string>
+    <string name="app_details">ℹ️ Alkalmazás részletei</string>
+    <string name="uninstall_app">🗑️ Alkalmazás eltávolítása</string>
 </resources>

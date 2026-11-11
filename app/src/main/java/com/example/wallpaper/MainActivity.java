@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -29,15 +30,17 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
-public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppClickListener {
+public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppClickListener, AppAdapter.OnAppLongClickListener {
 
     private static final String PREFS_NAME = "wallpaper_prefs";
     private static final String PREF_GITHUB_OWNER = "github_owner";
     private static final String PREF_GITHUB_REPO = "github_repo";
+    private static final String PREF_FAVORITES = "favorite_packages";
 
     private EditText etSearch;
     private TextView tvHeaderLabel;
@@ -91,7 +94,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         tvWeather = findViewById(R.id.tvWeather);
         RecyclerView rvApps = findViewById(R.id.rvApps);
 
-        appAdapter = new AppAdapter(this);
+        appAdapter = new AppAdapter(this, this);
         rvApps.setLayoutManager(new LinearLayoutManager(this));
         rvApps.setAdapter(appAdapter);
 
@@ -132,8 +135,34 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         });
     }
 
+    private Set<String> getFavoritePackages() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        return prefs.getStringSet(PREF_FAVORITES, new HashSet<>());
+    }
+
+    private void toggleFavorite(AppModel app) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        Set<String> favorites = new HashSet<>(getFavoritePackages());
+
+        if (favorites.contains(app.getPackageName())) {
+            favorites.remove(app.getPackageName());
+            app.setFavorite(false);
+            Toast.makeText(this, app.getLabel() + " eltávolítva a kedvencekből", Toast.LENGTH_SHORT).show();
+        } else {
+            favorites.add(app.getPackageName());
+            app.setFavorite(true);
+            Toast.makeText(this, app.getLabel() + " hozzáadva a kedvencekhez ⭐", Toast.LENGTH_SHORT).show();
+        }
+
+        prefs.edit().putStringSet(PREF_FAVORITES, favorites).apply();
+
+        sortApps();
+        filterApps(etSearch.getText().toString());
+    }
+
     private void loadInstalledApps() {
         allApps.clear();
+        Set<String> favorites = getFavoritePackages();
 
         PackageManager pm = getPackageManager();
         Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
@@ -150,12 +179,25 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             String label = ri.loadLabel(pm).toString();
             String className = ri.activityInfo.name;
 
-            allApps.add(new AppModel(label, packageName, className, null));
+            AppModel app = new AppModel(label, packageName, className, null);
+            if (favorites.contains(packageName)) {
+                app.setFavorite(true);
+            }
+            allApps.add(app);
         }
 
-        allApps.sort(Comparator.comparing(a -> a.getLabel().toLowerCase(Locale.getDefault())));
-
+        sortApps();
         filterApps(etSearch.getText().toString());
+    }
+
+    private void sortApps() {
+        allApps.sort((a1, a2) -> {
+            if (a1.isFavorite() != a2.isFavorite()) {
+                return a1.isFavorite() ? -1 : 1; // Favorites first
+            }
+            return a1.getLabel().toLowerCase(Locale.getDefault())
+                    .compareTo(a2.getLabel().toLowerCase(Locale.getDefault()));
+        });
     }
 
     private void filterApps(String query) {
@@ -164,7 +206,12 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
 
         if (trimmedQuery.isEmpty()) {
             filteredApps.addAll(allApps);
-            tvHeaderLabel.setText(getString(R.string.all_apps_count, allApps.size()));
+            long favCount = allApps.stream().filter(AppModel::isFavorite).count();
+            if (favCount > 0) {
+                tvHeaderLabel.setText(getString(R.string.favorites_header_text, favCount, allApps.size()));
+            } else {
+                tvHeaderLabel.setText(getString(R.string.all_apps_count, allApps.size()));
+            }
         } else {
             for (AppModel app : allApps) {
                 if (app.getLabel().toLowerCase(Locale.getDefault()).contains(trimmedQuery)) {
@@ -193,6 +240,51 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             }
         } else {
             Toast.makeText(this, R.string.cant_launch_app, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public boolean onAppLongClick(AppModel app) {
+        String favOption = app.isFavorite() ? getString(R.string.remove_favorite) : getString(R.string.add_favorite);
+        String[] options = new String[]{
+                favOption,
+                getString(R.string.app_details),
+                getString(R.string.uninstall_app)
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle(app.getLabel())
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        toggleFavorite(app);
+                    } else if (which == 1) {
+                        openAppDetails(app);
+                    } else if (which == 2) {
+                        uninstallApp(app);
+                    }
+                })
+                .show();
+
+        return true;
+    }
+
+    private void openAppDetails(AppModel app) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + app.getPackageName()));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Nem sikerült megnyitni az alkalmazás részleteit", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void uninstallApp(AppModel app) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_DELETE);
+            intent.setData(Uri.parse("package:" + app.getPackageName()));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Nem sikerült elindítani az eltávolítást", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -326,6 +418,8 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
                 tvWeather.setText(weatherText);
             }
         });
+
+        loadInstalledApps();
     }
 
     @Override

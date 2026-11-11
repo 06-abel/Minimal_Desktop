@@ -17,11 +17,17 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
         void onAppClick(AppModel app);
     }
 
-    private List<AppModel> apps = new ArrayList<>();
-    private final OnAppClickListener listener;
+    public interface OnAppLongClickListener {
+        boolean onAppLongClick(AppModel app);
+    }
 
-    public AppAdapter(OnAppClickListener listener) {
-        this.listener = listener;
+    private List<AppModel> apps = new ArrayList<>();
+    private final OnAppClickListener clickListener;
+    private final OnAppLongClickListener longClickListener;
+
+    public AppAdapter(OnAppClickListener clickListener, OnAppLongClickListener longClickListener) {
+        this.clickListener = clickListener;
+        this.longClickListener = longClickListener;
     }
 
     public void setApps(List<AppModel> apps) {
@@ -41,10 +47,19 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         AppModel app = apps.get(position);
         holder.tvAppLabel.setText(app.getLabel());
+        holder.tvFavoriteStar.setVisibility(app.isFavorite() ? View.VISIBLE : View.GONE);
+
         holder.itemView.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onAppClick(app);
+            if (clickListener != null) {
+                clickListener.onAppClick(app);
             }
+        });
+
+        holder.itemView.setOnLongClickListener(v -> {
+            if (longClickListener != null) {
+                return longClickListener.onAppLongClick(app);
+            }
+            return false;
         });
     }
 
@@ -55,10 +70,12 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvAppLabel;
+        TextView tvFavoriteStar;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             tvAppLabel = itemView.findViewById(R.id.tvAppLabel);
+            tvFavoriteStar = itemView.findViewById(R.id.tvFavoriteStar);
         }
     }
 }
