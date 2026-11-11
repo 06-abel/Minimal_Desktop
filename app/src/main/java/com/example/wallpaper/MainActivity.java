@@ -3,6 +3,7 @@ package com.example.wallpaper;
 import android.app.role.RoleManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Build;
@@ -18,6 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -32,6 +34,10 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppClickListener {
+
+    private static final String PREFS_NAME = "wallpaper_prefs";
+    private static final String PREF_GITHUB_OWNER = "github_owner";
+    private static final String PREF_GITHUB_REPO = "github_repo";
 
     private EditText etSearch;
     private TextView tvHeaderLabel;
@@ -71,6 +77,8 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         initViews();
         setupBackHandler();
         loadInstalledApps();
+
+        checkGitHubUpdates(false);
     }
 
     private void initViews() {
@@ -85,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         rvApps.setLayoutManager(new LinearLayoutManager(this));
         rvApps.setAdapter(appAdapter);
 
-        findViewById(R.id.btnSettings).setOnClickListener(v -> openLauncherSettings());
+        findViewById(R.id.btnSettings).setOnClickListener(v -> openSettingsDialog());
         bannerSetDefault.setOnClickListener(v -> requestDefaultLauncher());
 
         etSearch.addTextChangedListener(new TextWatcher() {
@@ -215,6 +223,78 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
                 Toast.makeText(this, R.string.cant_open_settings, Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    private void checkGitHubUpdates(boolean showToastIfLatest) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String owner = prefs.getString(PREF_GITHUB_OWNER, "06-abel");
+        String repo = prefs.getString(PREF_GITHUB_REPO, "Minimal_Desktop");
+
+        if (!owner.isEmpty() && !repo.isEmpty()) {
+            GitHubUpdater.checkForUpdates(this, owner, repo, showToastIfLatest);
+        } else if (showToastIfLatest) {
+            Toast.makeText(this, "Állítsd be a GitHub felhasználónevedet a Beállításokban!", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openSettingsDialog() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String currentOwner = prefs.getString(PREF_GITHUB_OWNER, "06-abel");
+        String currentRepo = prefs.getString(PREF_GITHUB_REPO, "Minimal_Desktop");
+
+        String[] options = new String[]{
+                "Alapértelmezett Kezdőképernyő beállítása",
+                "Frissítés keresése a GitHubon",
+                "GitHub Repó beállítása (" + currentOwner + "/" + currentRepo + ")"
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle("Beállítások")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        requestDefaultLauncher();
+                    } else if (which == 1) {
+                        checkGitHubUpdates(true);
+                    } else if (which == 2) {
+                        showGithubRepoInputDialog();
+                    }
+                })
+                .setNegativeButton("Bezárás", null)
+                .show();
+    }
+
+    private void showGithubRepoInputDialog() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String currentOwner = prefs.getString(PREF_GITHUB_OWNER, "06-abel");
+        String currentRepo = prefs.getString(PREF_GITHUB_REPO, "Minimal_Desktop");
+
+        EditText input = new EditText(this);
+        input.setHint("Felhasználónév/Repó (pl. janos/Wallpaper)");
+        if (!currentOwner.isEmpty()) {
+            input.setText(currentOwner + "/" + currentRepo);
+        }
+        input.setPadding(32, 24, 32, 24);
+
+        new AlertDialog.Builder(this)
+                .setTitle("GitHub Repó megadása")
+                .setMessage("Add meg a GitHub felhasználóneved és a tárhelyed nevét 'felhasználónév/projekt' formátumban:")
+                .setView(input)
+                .setPositiveButton("Mentés", (dialog, which) -> {
+                    String value = input.getText().toString().trim();
+                    if (value.contains("/")) {
+                        String[] parts = value.split("/", 2);
+                        prefs.edit()
+                                .putString(PREF_GITHUB_OWNER, parts[0].trim())
+                                .putString(PREF_GITHUB_REPO, parts[1].trim())
+                                .apply();
+                        Toast.makeText(this, "GitHub repó elmentve!", Toast.LENGTH_SHORT).show();
+                        checkGitHubUpdates(true);
+                    } else {
+                        Toast.makeText(this, "Érvénytelen formátum! Használd a 'felhasználó/repó' alakot.", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Mégse", null)
+                .show();
     }
 
     @Override
