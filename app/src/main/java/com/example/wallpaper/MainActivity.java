@@ -1,5 +1,6 @@
 package com.example.wallpaper;
 
+import android.Manifest;
 import android.app.role.RoleManager;
 import android.content.Context;
 import android.content.Intent;
@@ -21,8 +22,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -36,12 +39,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppClickListener, AppAdapter.OnAppLongClickListener {
+public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppClickListener, AppAdapter.OnAppLongClickListener, CalendarAdapter.OnEventToggleListener {
 
     private static final String PREFS_NAME = "wallpaper_prefs";
     private static final String PREF_GITHUB_OWNER = "github_owner";
     private static final String PREF_GITHUB_REPO = "github_repo";
     private static final String PREF_FAVORITES = "favorite_packages";
+    private static final int REQUEST_CODE_CALENDAR = 101;
 
     private EditText etSearch;
     private TextView tvHeaderLabel;
@@ -53,6 +57,11 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
     private TextView tvMediaTitle;
     private TextView tvMediaArtist;
     private ImageView btnMediaPlayPause;
+
+    private RecyclerView rvCalendarEvents;
+    private TextView tvNoCalendarEvents;
+    private TextView btnCalendarPermission;
+    private CalendarAdapter calendarAdapter;
 
     private AppAdapter appAdapter;
 
@@ -118,6 +127,14 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
         ImageView btnMediaPrev = findViewById(R.id.btnMediaPrev);
         ImageView btnMediaNext = findViewById(R.id.btnMediaNext);
 
+        rvCalendarEvents = findViewById(R.id.rvCalendarEvents);
+        tvNoCalendarEvents = findViewById(R.id.tvNoCalendarEvents);
+        btnCalendarPermission = findViewById(R.id.btnCalendarPermission);
+
+        calendarAdapter = new CalendarAdapter(this);
+        rvCalendarEvents.setLayoutManager(new LinearLayoutManager(this));
+        rvCalendarEvents.setAdapter(calendarAdapter);
+
         RecyclerView rvApps = findViewById(R.id.rvApps);
 
         appAdapter = new AppAdapter(this, this);
@@ -165,6 +182,10 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             });
         }
 
+        if (btnCalendarPermission != null) {
+            btnCalendarPermission.setOnClickListener(v -> requestCalendarPermission());
+        }
+
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -177,6 +198,49 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             @Override
             public void afterTextChanged(Editable s) {}
         });
+    }
+
+    private void requestCalendarPermission() {
+        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CALENDAR}, REQUEST_CODE_CALENDAR);
+    }
+
+    private void loadCalendarEvents() {
+        if (!CalendarManager.hasCalendarPermission(this)) {
+            if (btnCalendarPermission != null) btnCalendarPermission.setVisibility(View.VISIBLE);
+            if (tvNoCalendarEvents != null) tvNoCalendarEvents.setVisibility(View.GONE);
+            if (rvCalendarEvents != null) rvCalendarEvents.setVisibility(View.GONE);
+            return;
+        }
+
+        if (btnCalendarPermission != null) btnCalendarPermission.setVisibility(View.GONE);
+
+        List<CalendarEventModel> events = CalendarManager.loadNext24HoursEvents(this);
+        if (events.isEmpty()) {
+            if (tvNoCalendarEvents != null) tvNoCalendarEvents.setVisibility(View.VISIBLE);
+            if (rvCalendarEvents != null) rvCalendarEvents.setVisibility(View.GONE);
+        } else {
+            if (tvNoCalendarEvents != null) tvNoCalendarEvents.setVisibility(View.GONE);
+            if (rvCalendarEvents != null) rvCalendarEvents.setVisibility(View.VISIBLE);
+            calendarAdapter.setEvents(events);
+        }
+    }
+
+    @Override
+    public void onEventToggle(CalendarEventModel event) {
+        CalendarManager.toggleEventCompleted(this, event.getId());
+        loadCalendarEvents();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_CALENDAR) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                loadCalendarEvents();
+            } else {
+                Toast.makeText(this, "Naptár engedély elutasítva", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void launchSpotifyOrMusicApp() {
@@ -505,6 +569,7 @@ public class MainActivity extends AppCompatActivity implements AppAdapter.OnAppC
             }
         });
 
+        loadCalendarEvents();
         loadInstalledApps();
     }
 
